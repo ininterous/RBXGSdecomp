@@ -1,7 +1,57 @@
 #include "ThumbnailGenerator.h"
 #include "util/standardout.h"
-// FIXME: ainda nao existem no repo: OSContext (global), GuiDrawImage, ContentProvider, View,
-// Workspace::setImageServerView, Lighting::setClearColor. Decompilar depois.
+// FIXME: ainda nao existem no repo: GuiDrawImage, ContentProvider, View,
+// Workspace::setImageServerView, Lighting::setClearColor.
+
+// OSContext NAO e uma classe separada: o pdb mostra que ela e definida dentro do
+// ThumbnailGenerator.obj (junto com StaticMutex<OSContext>). E uma janela G3D "falsa"
+// que usa o OSMesa (OpenGL por software, sem janela) pra desenhar fora da tela.
+class OSContext : public G3D::GWindow
+{
+	// exe: 0x10302EB0 (contexto atual)
+	static OSContext* current;
+	OSMesaContext context;   // +0x1c
+	G3D::GImage image;       // +0x20 (buffer onde o OSMesa desenha)
+
+	static OSMesaContext shared(bool alpha); // exe: 0x10006580
+
+public:
+	OSContext(int width, int height, bool alpha); // exe: 0x10006640
+	virtual ~OSContext();                         // exe: 0x10006720
+	// FIXME: o resto dos virtuais do GWindow (mouseVisible, inputCapture, joystickName,
+	// numJoysticks, setCaption, setGammaRamp, setMouseVisible, width, height) sao stubs.
+};
+
+// exe: 0x10006640
+OSContext::OSContext(int width, int height, bool alpha)
+	: image(width, height, alpha ? 4 : 3)
+{
+	// OSMesa: GL_RGBA (0x1908) com alpha, GL_RGB (0x1907) sem
+	context = OSMesaCreateContext(alpha ? GL_RGBA : GL_RGB, shared(alpha));
+	if (context == NULL)
+		throw std::runtime_error("OSMesaCreateContext failed");
+	// FIXME: OSMesaMakeCurrent em algum lugar (nao achei ainda)
+}
+
+// exe: 0x10006720
+OSContext::~OSContext()
+{
+	OSMesaDestroyContext(context);
+	if (current == this)
+		current = NULL;
+}
+
+// exe: 0x10006A30 (funcao estatica local do arquivo, sem argumentos)
+// Fica esperando o ContentProvider terminar de baixar tudo antes de tirar a foto.
+static void waitForContent()
+{
+	while (!RBX::ContentProvider::singleton().isRequestQueueEmpty())
+	{
+		boost::xtime xt;
+		boost::xtime_get(&xt, boost::TIME_UTC);
+		boost::thread::sleep(xt);
+	}
+}
 
 // FIXME: nomes dos parametros do registro de reflexao ainda nao confirmados
 static RBX::Reflection::BoundFuncDesc<ThumbnailGenerator, std::string(std::string, int, int, bool), 4> func_Click(&ThumbnailGenerator::click, "Click", "fileType", "width", "height", "hideSky", RBX::Reflection::FunctionDescriptor::NeedTrustedCaller);
@@ -23,9 +73,9 @@ std::string ThumbnailGenerator::click(std::string fileType, int width, int heigh
 	output.setEndian(G3D::G3D_LITTLE_ENDIAN);
 
 	// A primeira chamada nao grava nada (output = NULL), a segunda grava na BinaryOutput.
-	// Entre as duas o exe chama uma funcao sem argumentos em 0x10006A30 (FIXME: nao identificada)
+	// Entre as duas, espera o conteudo (texturas, meshes) terminar de carregar.
 	doClick(fileType, width, height, hideSky, NULL);
-	// FIXME: sub_10006A30();
+	waitForContent();
 	doClick(fileType, width, height, hideSky, &output);
 
 	std::string data;
@@ -100,12 +150,15 @@ void ThumbnailGenerator::doClick(std::string fileType, int width, int height, bo
 	}
 
 	OSContext context(width, height, hasAlpha);
-	// ... lock do mutex estatico do OSContext, Mesh::makeVAR ...
+	boost::mutex::scoped_lock lock(StaticMutex<OSContext>::get()); // FIXME: nome exato do mutex estatico
+	if (OSContext::current != &context) { /* makeCurrent virtual (vtable +0x98) */ OSContext::current = &context; }
+	RBX::Render::Mesh::makeVAR();
 	G3D::RenderDevice renderDevice;
 	renderDevice.init(&context, NULL);
 
-	// View (0x58 bytes) criada a partir do DataModel pai desta instancia
-	// FIXME: RBX::View* view = new RBX::View(shared_from(dataModel)); view->(virtual +0x10)(...); view->(virtual +4)(&renderDevice);
+	// View (0x58 bytes) criada a partir do DataModel pai desta instancia; guardada num scoped_ptr
+	// FIXME: boost::scoped_ptr<RBX::View::View> view(new RBX::View::View(shared_from(dataModel)));
+	//        view->(virtual +0x10)(...); view->(virtual +4)(&renderDevice);
 	// glMatrixMode(GL_MODELVIEW) chamado antes e depois do render
 
 	// FIXME: inverte a imagem na vertical (flipRGBAVertical se hasAlpha, senao flipRGBVertical)
