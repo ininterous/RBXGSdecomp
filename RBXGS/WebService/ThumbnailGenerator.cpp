@@ -8,19 +8,51 @@
 // que usa o OSMesa (OpenGL por software, sem janela) pra desenhar fora da tela.
 class OSContext : public G3D::GWindow
 {
-	// exe: 0x10302EB0 (contexto atual)
-	static OSContext* current;
-	OSMesaContext context;   // +0x1c
-	G3D::GImage image;       // +0x20 (buffer onde o OSMesa desenha)
+	static OSContext* current;   // exe: 0x10302EB0
+	OSMesaContext context;       // +0x1c
+	G3D::GImage image;           // +0x20 (buffer onde o OSMesa desenha)
 
-	static OSMesaContext shared(bool alpha); // exe: 0x10006580
+	OSContext(bool alpha);                    // exe: 0x100064B0 (so pro contexto compartilhado)
+	static OSMesaContext shared(bool alpha);  // exe: 0x10006580
 
 public:
 	OSContext(int width, int height, bool alpha); // exe: 0x10006640
 	virtual ~OSContext();                         // exe: 0x10006720
-	// FIXME: o resto dos virtuais do GWindow (mouseVisible, inputCapture, joystickName,
-	// numJoysticks, setCaption, setGammaRamp, setMouseVisible, width, height) sao stubs.
+
+	virtual void getSettings(G3D::GWindow::Settings& settings) const; // exe: 0x10006840
+	virtual int width() const;                                        // exe: 0x100068B0
+	virtual int height() const;                                       // exe: 0x100068C0
+	virtual bool inputCapture() const;                                // exe: 0x10006960
+	virtual void reallyMakeCurrent() const;                           // exe: 0x100067B0
+	// FIXME: os outros virtuais (setInputCapture, mouseVisible, setMouseVisible, joystickName,
+	// numJoysticks, setCaption, setGammaRamp...) sao stubs vazios que o compilador juntou num
+	// so (0x10006900). Conferir o retorno de cada um.
 };
+
+OSContext* OSContext::current = NULL;
+
+// exe: 0x100064B0 (cria o contexto "pai" de que os outros dividem texturas/listas)
+OSContext::OSContext(bool alpha)
+{
+	context = OSMesaCreateContext(alpha ? GL_RGBA : GL_RGB, NULL);
+	if (context == NULL)
+		throw std::runtime_error("shared OSMesaCreateContext failed");
+}
+
+// exe: 0x10006580 (duas variaveis estaticas locais, uma com alpha e outra sem)
+OSMesaContext OSContext::shared(bool alpha)
+{
+	if (alpha)
+	{
+		static OSContext sharedAlpha(true);
+		return sharedAlpha.context;
+	}
+	else
+	{
+		static OSContext sharedNoAlpha(false);
+		return sharedNoAlpha.context;
+	}
+}
 
 // exe: 0x10006640
 OSContext::OSContext(int width, int height, bool alpha)
@@ -30,7 +62,6 @@ OSContext::OSContext(int width, int height, bool alpha)
 	context = OSMesaCreateContext(alpha ? GL_RGBA : GL_RGB, shared(alpha));
 	if (context == NULL)
 		throw std::runtime_error("OSMesaCreateContext failed");
-	// FIXME: OSMesaMakeCurrent em algum lugar (nao achei ainda)
 }
 
 // exe: 0x10006720
@@ -39,6 +70,26 @@ OSContext::~OSContext()
 	OSMesaDestroyContext(context);
 	if (current == this)
 		current = NULL;
+}
+
+// exe: 0x10006840
+void OSContext::getSettings(G3D::GWindow::Settings& settings) const
+{
+	settings = G3D::GWindow::Settings();
+}
+
+// exe: 0x100068B0 / 0x100068C0 (le direto do GImage)
+int OSContext::width() const { return image.width; }
+int OSContext::height() const { return image.height; }
+
+// exe: 0x10006960
+bool OSContext::inputCapture() const { return false; }
+
+// exe: 0x100067B0 - liga o buffer da GImage ao OSMesa
+void OSContext::reallyMakeCurrent() const
+{
+	if (!OSMesaMakeCurrent(context, image.byte(), GL_UNSIGNED_BYTE, image.width, image.height))
+		throw std::runtime_error("OSMesaMakeCurrent failed");
 }
 
 // exe: 0x10006A30 (funcao estatica local do arquivo, sem argumentos)
