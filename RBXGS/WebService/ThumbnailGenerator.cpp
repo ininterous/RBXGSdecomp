@@ -1,5 +1,26 @@
+#define WIN32_LEAN_AND_MEAN
+#include <winsock2.h>
 #include "ThumbnailGenerator.h"
+#include <sstream>
+#include <stdexcept>
+#include <string.h>
+#include <boost/thread/mutex.hpp>
+#include <boost/thread/thread.hpp>
+#include <boost/thread/xtime.hpp>
+#include <G3D/GImage.h>
+#include <G3D/BinaryOutput.h>
+#include <G3D/Matrix4.h>
+#include <G3D/Color4.h>
+#include <G3D/Rect2D.h>
+#include <GLG3D/GWindow.h>
+#include <GLG3D/RenderDevice.h>
+#include <GLG3D/TextureManager.h>
+#include <GL/osmesa.h>
 #include "util/standardout.h"
+#include "util/ContentProvider.h"
+#include "gui/GuiDraw.h"
+#include "v8datamodel/Lighting.h"
+#include "v8datamodel/Workspace.h"
 // FIXME: ainda nao existem no repo: GuiDrawImage, ContentProvider, View,
 // Workspace::setImageServerView, Lighting::setClearColor.
 
@@ -8,6 +29,7 @@
 // que usa o OSMesa (OpenGL por software, sem janela) pra desenhar fora da tela.
 class OSContext : public G3D::GWindow
 {
+public:
 	static OSContext* current;   // exe: 0x10302EB0
 	OSMesaContext context;       // +0x1c
 	G3D::GImage image;           // +0x20 (buffer onde o OSMesa desenha)
@@ -24,9 +46,38 @@ public:
 	virtual int height() const;                                       // exe: 0x100068C0
 	virtual bool inputCapture() const;                                // exe: 0x10006960
 	virtual void reallyMakeCurrent() const;                           // exe: 0x100067B0
+	// stubs vazios exigidos pelo GWindow (no exe o compilador juntou varios num so, 0x10006900)
+	virtual G3D::Rect2D dimensions() const { return G3D::Rect2D::xywh(0, 0, (float)image.width, (float)image.height); }
+	virtual void setDimensions(const G3D::Rect2D&) {}
+	virtual void setPosition(int, int) {}
+	virtual bool hasFocus() const { return false; }
+	virtual std::string getAPIVersion() const { return ""; }
+	virtual std::string getAPIName() const { return ""; }
+	virtual void setGammaRamp(const G3D::Array<G3D::uint16>&) {}
+	virtual void setCaption(const std::string&) {}
+	virtual int numJoysticks() const { return 0; }
+	virtual std::string joystickName(unsigned int) { return ""; }
+	virtual std::string caption() { return ""; }
+	virtual void swapGLBuffers() {}
+	virtual void notifyResize(int, int) {}
+	virtual void setRelativeMousePosition(double, double) {}
+	virtual void setRelativeMousePosition(const G3D::Vector2&) {}
+	virtual void getRelativeMouseState(G3D::Vector2&, G3D::uint8&) const {}
+	virtual void getRelativeMouseState(int&, int&, G3D::uint8&) const {}
+	virtual void getRelativeMouseState(double&, double&, G3D::uint8&) const {}
+	virtual void getJoystickState(unsigned int, G3D::Array<float>&, G3D::Array<bool>&) {}
+	virtual void setInputCapture(bool) {}
+	virtual void setMouseVisible(bool) {}
+	virtual bool mouseVisible() const { return false; }
 	// FIXME: os outros virtuais (setInputCapture, mouseVisible, setMouseVisible, joystickName,
 	// numJoysticks, setCaption, setGammaRamp...) sao stubs vazios que o compilador juntou num
 	// so (0x10006900). Conferir o retorno de cada um.
+};
+
+// FIXME: o exe tem StaticMutex<OSContext> (no pdb); aqui um equivalente simples
+template<class T> struct StaticMutex
+{
+	static boost::mutex& get() { static boost::mutex m; return m; }
 };
 
 OSContext* OSContext::current = NULL;
@@ -88,7 +139,7 @@ bool OSContext::inputCapture() const { return false; }
 // exe: 0x100067B0 - liga o buffer da GImage ao OSMesa
 void OSContext::reallyMakeCurrent() const
 {
-	if (!OSMesaMakeCurrent(context, image.byte(), GL_UNSIGNED_BYTE, image.width, image.height))
+	if (!OSMesaMakeCurrent(context, const_cast<void*>(static_cast<const void*>(image.byte())), GL_UNSIGNED_BYTE, image.width, image.height))
 		throw std::runtime_error("OSMesaMakeCurrent failed");
 }
 
@@ -203,7 +254,7 @@ void ThumbnailGenerator::doClick(std::string fileType, int width, int height, bo
 	OSContext context(width, height, hasAlpha);
 	boost::mutex::scoped_lock lock(StaticMutex<OSContext>::get()); // FIXME: nome exato do mutex estatico
 	if (OSContext::current != &context) { /* makeCurrent virtual (vtable +0x98) */ OSContext::current = &context; }
-	RBX::Render::Mesh::makeVAR();
+	// FIXME: RBX::Render::Mesh::makeVAR() ainda nao existe no repo
 	G3D::RenderDevice renderDevice;
 	renderDevice.init(&context, NULL);
 

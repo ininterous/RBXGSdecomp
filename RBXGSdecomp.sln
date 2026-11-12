@@ -17,6 +17,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RenderLib", "Client\Renderi
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RbxGraphics", "Client\RbxGraphics\RbxGraphics.vcproj", "{22AD3A99-6BCA-4DDE-BB6F-F13B7F329DAC}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "WebService", "RBXGS\WebService\WebService.vcproj", "{B6E1F0A2-3C4D-4E5F-8A9B-0C1D2E3F4A5B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -89,6 +91,14 @@ Global
 		{22AD3A99-6BCA-4DDE-BB6F-F13B7F329DAC}.ReleaseAssert|Win32.Build.0 = Release|Win32
 		{22AD3A99-6BCA-4DDE-BB6F-F13B7F329DAC}.ReleaseAssertDLL|Win32.ActiveCfg = Release|Win32
 		{22AD3A99-6BCA-4DDE-BB6F-F13B7F329DAC}.ReleaseAssertDLL|Win32.Build.0 = Release|Win32
+		{B6E1F0A2-3C4D-4E5F-8A9B-0C1D2E3F4A5B}.Debug|Win32.ActiveCfg = Debug|Win32
+		{B6E1F0A2-3C4D-4E5F-8A9B-0C1D2E3F4A5B}.Debug|Win32.Build.0 = Debug|Win32
+		{B6E1F0A2-3C4D-4E5F-8A9B-0C1D2E3F4A5B}.Release|Win32.ActiveCfg = ReleaseAssert|Win32
+		{B6E1F0A2-3C4D-4E5F-8A9B-0C1D2E3F4A5B}.Release|Win32.Build.0 = ReleaseAssert|Win32
+		{B6E1F0A2-3C4D-4E5F-8A9B-0C1D2E3F4A5B}.ReleaseAssert|Win32.ActiveCfg = ReleaseAssert|Win32
+		{B6E1F0A2-3C4D-4E5F-8A9B-0C1D2E3F4A5B}.ReleaseAssert|Win32.Build.0 = ReleaseAssert|Win32
+		{B6E1F0A2-3C4D-4E5F-8A9B-0C1D2E3F4A5B}.ReleaseAssertDLL|Win32.ActiveCfg = ReleaseAssert|Win32
+		{B6E1F0A2-3C4D-4E5F-8A9B-0C1D2E3F4A5B}.ReleaseAssertDLL|Win32.Build.0 = ReleaseAssert|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
